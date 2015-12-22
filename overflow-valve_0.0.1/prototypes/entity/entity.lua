@@ -9,7 +9,7 @@ data:extend({
    minable = {hardness = 0.2, mining_time = 0.7, result = "overflow-valve"},
    max_health = 75,
    corpse = "small-remnants",
-   collision_box = {{-0.29, -0.29}, {0.29, 0.29}},
+   collision_box = {{-0.29, -0.5}, {0.29, 0.5}},
    selection_box = {{-0.5, -0.5}, {0.5, 0.5}},
    vehicle_impact_sound =  { filename = "__base__/sound/car-metal-impact.ogg", volume = 0.65 },
    resistances = {{
@@ -34,7 +34,7 @@ data:extend({
     pictures = {
        picture = {
 	  sheet = {
-	     filename = "__overflow-valve__/graphics/entity/overflow-valve/overflow-valve2.png",
+	     filename = "__overflow-valve__/graphics/entity/overflow-valve/overflow-valve3.png",
 	     priority = "extra-high",
 	     frames = 2,
 	     width = 44,
@@ -43,19 +43,19 @@ data:extend({
 	  }
        },
        fluid_background = {
-	  filename = "__RailTanker__/graphics/trans.png",
+	  filename = "__overflow-valve__/graphics/trans.png",
 	  priority = "extra-high",
 	  width = 1,
 	  height = 1,
        },
        window_background = {
-	  filename = "__RailTanker__/graphics/trans.png",
+	  filename = "__overflow-valve__/graphics/trans.png",
 	  priority = "extra-high",
 	  width = 1,
 	  height = 1,
        },
        flow_sprite = {
-	  filename = "__RailTanker__/graphics/trans.png",
+	  filename = "__overflow-valve__/graphics/trans.png",
 	  priority = "extra-high",
 	  width = 1,
 	  height = 1,
@@ -111,7 +111,7 @@ data:extend({
 {
    type = "storage-tank",
    name = "valve-proxy",
-   icon = "__RailTanker__/graphics/trans-icon.png",
+   icon = "__overflow-valve__/graphics/trans-icon.png",
    flags = {"placeable-neutral", "player-creation"},
    max_health = 1,
    corpse = "small-remnants",
@@ -130,7 +130,7 @@ data:extend({
     pictures = {
        picture = {
 	  sheet = {
-	     filename = "__RailTanker__/graphics/trans.png",
+	     filename = "__overflow-valve__/graphics/trans.png",
 	     priority = "extra-high",
 	     frames = 1,
 	     width = 1,
@@ -139,19 +139,19 @@ data:extend({
 	  }
        },
        fluid_background = {
-	  filename = "__RailTanker__/graphics/trans.png",
+	  filename = "__overflow-valve__/graphics/trans.png",
 	  priority = "extra-high",
 	  width = 1,
 	  height = 1,
        },
        window_background = {
-	  filename = "__RailTanker__/graphics/trans.png",
+	  filename = "__overflow-valve__/graphics/trans.png",
 	  priority = "extra-high",
 	  width = 1,
 	  height = 1,
        },
        flow_sprite = {
-	  filename = "__RailTanker__/graphics/trans.png",
+	  filename = "__overflow-valve__/graphics/trans.png",
 	  priority = "extra-high",
 	  width = 1,
 	  height = 1,
