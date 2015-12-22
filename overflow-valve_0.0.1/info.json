@@ -5,6 +5,6 @@
     "title": "Overflow Valve",
     "author": "James Przybylinski",
     "description": "A Valve that acts like a pipe only when its input is full",
-    "dependencies": ["base >= 0.12.16"]
-    "contact": "ILMTitan@hotmail.com",
+    "dependencies": ["base >= 0.12.16"],
+    "contact": "ILMTitan@hotmail.com"
 }
