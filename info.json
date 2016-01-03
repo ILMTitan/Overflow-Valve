@@ -1,7 +1,7 @@
 
 {
     "name": "overflow-valve",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "title": "Overflow Valve",
     "author": "James Przybylinski",
     "description": "A Valve that acts like a pipe only when its input is full",

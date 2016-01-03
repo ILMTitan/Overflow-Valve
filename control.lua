@@ -11,9 +11,13 @@ script.on_event(defines.events.on_player_created, function(event)
 end)
 --]]--
 
-global.valve_locations = {}
+global.valve = global.valve or {}
+global.valve.locations = global.valve.locations or {}
+global.valve.player_selected = global.valve.player_selected or {}
 
-local function create_proxies(entity)
+local valve = {}
+
+function valve.create_proxies (entity)
    entity.surface.create_entity{
       name = "valve-proxy",
       position = entity.position,
@@ -29,21 +33,117 @@ local function create_proxies(entity)
    }
 end
 
-local function entity_built (event)
-   if event.created_entity ~= nil and event.created_entity.name == "overflow-valve" then
-      local entity = event.created_entity
-      create_proxies(entity)
-      global.valve_locations[{entity.position, entity.surface}] = true
+function valve.destroy_gui(player_index)
+   game.players[player_index].gui.center.valve_gui.destroy()
+   global.valve.player_selected[player_index] = nil
+   if next(global.valve.player_selected) == nil then
+      script.on_event(defines.events.on_gui_click, nil)
    end
 end
 
-local function get_proxies_from_entity(entity)
+function valve.on_gui_click (event)
+   local element = event.element
+   local valve_gui = game.players[event.player_index].gui.center.valve_gui
+   if valve_gui then
+      if valve_gui.buttons.cancel == element then
+	 valve.destroy_gui(event.player_index)
+      elseif valve_gui.buttons.accept == element then
+	 local errors = {}
+
+	 local overflow = tonumber(valve_gui.over_flow.input.text)
+	 if overflow == nil then
+	    table.insert(errors, "Minimum input must be a number!")
+	 elseif overflow < 0 then
+	    table.insert(errors, "Minimum input was too small. It must be between 0 and 100 but was " .. overflow .. ".")
+	 elseif overflow > 100 then
+	    table.insert(errors, "Minimum input was too large. It must be between 0 and 100 but was " .. overflow .. ".")
+	 end
+	 
+	 local underflow = tonumber(valve_gui.under_flow.input.text)
+	 if underflow == nil then
+	    table.insert(errors, "Maximum output must be a number!")
+	 elseif underflow < 0 then
+	    table.insert(errors, "Maximum output was too small. It must be between 0 and 100 but was " .. underflow .. ".")
+	 elseif underflow > 100 then
+	    table.insert(errors, "Maximum output was too large. It must be between 0 and 100 but was " .. underflow .. ".")
+	 end
+	 
+	 if next(errors) == nil then
+	    global.valve.locations[global.valve.player_selected[event.player_index]] = {overflow = overflow/10, underflow = underflow/10}
+	    valve.destroy_gui(event.player_index)
+	 else
+	    if valve_gui.errors then
+	       valve_gui.errors.destroy()
+	    end
+	    valve_gui.add{type = "flow", name = "errors", direction = "vertical"}
+	    for _, error_text in ipairs(errors) do
+	       local error_label = valve_gui.errors.add{type = "label", caption = error_text}
+	       error_label.style.font_color = {r = 1}
+	    end
+	 end
+      end
+   end
+end
+
+function valve.show_gui (entity, player, location_info)
+
+   global.valve.player_selected[player.index] = location_info
+
+   local center_gui = player.gui.center
+   if center_gui.valve_gui then
+      center_gui.valve_gui.destroy()
+   end
+
+   center_gui.add{type = "frame", caption = "Overflow Valve Settings", name = "valve_gui", direction = "vertical"}
+   local valve_gui = center_gui.valve_gui
+
+   valve_gui.add{type = "flow", name = "over_flow", direction = "horizontal"}
+   valve_gui.over_flow.add{type = "label", caption = "Minimum input % full for flow:"}
+   local over_field = valve_gui.over_flow.add{type = "textfield", text = "90", name = "input"}
+   over_field.style.maximal_width = 50
+   valve_gui.over_flow.add{type = "label", caption = "%"}
+
+   valve_gui.add{type = "flow", name = "under_flow", direction = "horizontal"}
+   valve_gui.under_flow.add{type = "label", caption = "Maximum output % full for flow:"}
+   local under_field = valve_gui.under_flow.add{type = "textfield", text = "100", name = "input"}
+   under_field.style.maximal_width = 50
+   valve_gui.under_flow.add{type = "label", caption = "%"}
+
+   valve_gui.add{type = "flow", name = "buttons", direction = "horizontal"}
+   valve_gui.buttons.add{type = "button", name = "accept", caption = "Accept"}
+   valve_gui.buttons.add{type = "button", name = "cancel", caption = "Cancel"}
+
+   script.on_event(defines.events.on_gui_click, valve.on_gui_click)
+		      
+   
+end
+
+function valve.entity_built (event)
+   if event.created_entity ~= nil and event.created_entity.name == "overflow-valve" then
+      local entity = event.created_entity
+      valve.create_proxies(entity)
+      local location_info = {entity.surface.name, entity.position}
+      global.valve.locations[location_info] = {overflow = 9, underflow = 10}
+      return location_info
+   else
+      return nil
+   end
+end
+
+function valve.entity_build_by_player (event)
+   local location_info = valve.entity_built(event)
+   if location_info then
+      valve.show_gui(event.created_entity, game.players[event.player_index], location_info)
+   end
+end
+
+function valve.get_proxies_from_entity(entity)
    local search_area = {entity.position, entity.position}
-   local proxies = entity.surface.find_entities_filtered{area = search_area, name="valve-proxy"}
+   local proxies = entity.surface.find_entities_filtered{area = search_area, name = "valve-proxy"}
    return table.unpack(proxies)
 end
 
-local function entity_rotated (event)
+function valve.entity_rotated (event)
    if event.entity ~= nil and event.entity.name == "overflow-valve" then
       local entity = event.entity
       local left, right = get_proxies_from_entity(entity)
@@ -52,18 +152,16 @@ local function entity_rotated (event)
    end
 end
 
-local function entity_removed (event)
+function valve.entity_removed (event)
    if event.entity ~= nil and event.entity.name == "overflow-valve" then
       local entity = event.entity
-      local left, right = get_proxies_from_entity(entity)
+      local left, right = valve.get_proxies_from_entity(entity)
       left.destroy()
       right.destroy()
-      -- does not work due to implementation of Lua tables
-      --global.valve_locations[{entity.position, entity.surface}] = nil
    end
 end
 
-local function flow (in_box, out_box, flow_amount)
+function valve.flow (in_box, out_box, flow_amount)
    out_box.amount = out_box.amount - flow_amount
    in_box.temperature = 
       (in_box.temperature * in_box.amount + out_box.temperature * flow_amount)
@@ -73,54 +171,90 @@ local function flow (in_box, out_box, flow_amount)
    return in_box, out_box
 end
 
-local function flow_in (valve, proxy)
+function valve.flow_in (entity, proxy, overflow)
    local proxy_box = proxy.fluidbox[1]
    if (proxy_box ~= nil) then
-      local valve_box = valve.fluidbox[1] or {amount = 0, type = "water", temperature = 0}
-      if proxy_box.amount > 9 and (proxy_box.type == valve_box.type or valve_box.amount == 0) then
-	 local flow_amount = math.min(proxy_box.amount - 9, 10 - valve_box.amount)
-	 valve.fluidbox[1], proxy.fluidbox[1] = flow(valve_box, proxy_box, flow_amount)
+      local valve_box = entity.fluidbox[1] or {amount = 0, type = "water", temperature = 0}
+      if proxy_box.amount > overflow and (proxy_box.type == valve_box.type or valve_box.amount == 0) then
+	 local flow_amount = math.min(proxy_box.amount - overflow, 10 - valve_box.amount)
+	 entity.fluidbox[1], proxy.fluidbox[1] = valve.flow(valve_box, proxy_box, flow_amount)
       end
    end
 end
 
-local function flow_out (valve, proxy)
-   local valve_box = valve.fluidbox[1]
+function valve.flow_out (entity, proxy, underflow)
+   local valve_box = entity.fluidbox[1]
    if valve_box ~= nil then
       local proxy_box = proxy.fluidbox[1] or {amount = 0, type = "water", temperature = 0}
-      if proxy_box.amount < 10 and (proxy_box.type == valve_box.type or proxy_box.amount == 0) then
-	 local flow_amount = math.min((10 - proxy_box.amount)/2, valve_box.amount/2)
-	 proxy.fluidbox[1], valve.fluidbox[1] = flow(proxy_box, valve_box, flow_amount)
+      if proxy_box.amount < underflow and (proxy_box.type == valve_box.type or proxy_box.amount == 0) then
+	 local flow_amount = math.min((underflow - proxy_box.amount)/2, valve_box.amount/2)
+	 proxy.fluidbox[1], entity.fluidbox[1] = valve.flow(proxy_box, valve_box, flow_amount)
       end
    end
 end
 
-local function on_tick (event)
-   for location_info, _ in pairs(global.valve_locations) do
-      local location, surface = unpack(location_info)
-      local valve = surface.find_entity("overflow-valve", location)
-      if valve == nil then
-	 global.valve_locations[location_info] = nil
+function valve.on_tick (event)
+   if(valve.need_init) then
+      valve.init()
+   end
+   for location_info, flow_info in pairs(global.valve.locations) do
+      local surface_name, position = table.unpack(location_info)
+      local entity = game.surfaces[surface_name].find_entity("overflow-valve", position)
+      if entity == nil then
+	 global.valve.locations[location_info] = nil
       else
-	 local left, right = get_proxies_from_entity(valve)
+	 local left, right = valve.get_proxies_from_entity(entity)
 	 if left.fluidbox[1] and (right.fluidbox[1] == nil or left.fluidbox[1].amount > right.fluidbox[1].amount) then
-	    flow_in(valve, left)
-	    flow_out(valve, right)
+	    valve.flow_in(entity, left, flow_info.overflow)
+	    valve.flow_out(entity, right, flow_info.underflow)
 	 elseif right.fluidbox[1] and (left.fluidbox[1] == nil or right.fluidbox[1].amount > left.fluidbox[1].amount) then
-	    flow_in(valve, right)
-	    flow_out(valve, left)
+	    valve.flow_in(entity, right, flow_info.overflow)
+	    valve.flow_out(entity, left, flow_info.underflow)
 	 end
       end
    end
 end
 
-script.on_event(defines.events.on_built_entity, entity_built)
-script.on_event(defines.events.on_robot_built_entity, entity_built)
+function valve.on_configuration_changed_load(...)
+   game.player.print("On load!")
+   if(global.valve_locations) then
+      game.player.print("initing!")
+      valve.need_init = true
+   end
+end
 
-script.on_event(defines.events.on_player_rotated_entity, entity_rotated)
+function valve.init()
+   global.valve = global.valve or {}
+   global.valve.locations = global.valve.locations or {}
+   global.valve.player_selected = global.valve.player_selected or {}
+   
+   for location_info, _ in pairs(global.valve_locations) do
+      local position, surface = table.unpack(location_info)
+      for k, v in pairs(surface) do
+	 game.player.print("k " .. tostring(k) .. " v " .. tostring(v))
+      end
+      surface = game.get_surface(surface.surfaceindex + 1)
+      game.player.print(game.get_surface(1).index)
+      for k, v in pairs(game.get_surface(1)) do
+	 game.player.print("k " .. tostring(k) .. " v " .. tostring(v))
+      end
+      new_location_info = {surface.name, position}
+      global.valve.locations[new_location_info] = {overflow = 9, underflow = 10}
+   end
+   global.valve_locations = nil
+   
+   valve.need_init = false
+end
 
-script.on_event(defines.events.on_preplayer_mined_item, entity_removed)
-script.on_event(defines.events.on_robot_pre_mined, entity_removed)
-script.on_event(defines.events.on_entity_died, entity_removed)
+script.on_event(defines.events.on_built_entity, valve.entity_build_by_player)
+script.on_event(defines.events.on_robot_built_entity, valve.entity_built)
 
-script.on_event(defines.events.on_tick, on_tick)
+script.on_event(defines.events.on_player_rotated_entity, valve.entity_rotated)
+
+script.on_event(defines.events.on_preplayer_mined_item, valve.entity_removed)
+script.on_event(defines.events.on_robot_pre_mined, valve.entity_removed)
+script.on_event(defines.events.on_entity_died, valve.entity_removed)
+
+script.on_event(defines.events.on_tick, valve.on_tick)
+
+script.on_configuration_changed(valve.on_configuration_changed)
