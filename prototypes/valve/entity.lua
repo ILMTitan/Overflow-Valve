@@ -116,7 +116,7 @@ data:extend({
    max_health = 1,
    corpse = "small-remnants",
    collision_box = {{-0.29, -0.29}, {0.29, 0.29}},
-   collision_mask = {"ghost-layer"},
+   collision_mask = {},
    order = "z",
    fluid_box = {
 	 base_area = 1,

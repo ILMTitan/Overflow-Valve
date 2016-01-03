@@ -1,4 +1,4 @@
-require("prototypes.item.item")
-require("prototypes.entity.entity")
-require("prototypes.recipe.recipe")
-require("prototypes.tech.tech")
+require("prototypes.valve.item")
+require("prototypes.valve.entity")
+require("prototypes.valve.recipe")
+require("prototypes.valve.tech")
