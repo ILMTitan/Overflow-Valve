@@ -13,10 +13,105 @@ end)
 --]]--
 
 global.valve = global.valve or {}
-global.valve.locations = global.valve.locations or {}
-global.valve.player_selected = global.valve.player_selected or {}
+global.valve.locations = global.locations or global.valve.locations or {}
+global.valve.player_selected = global.player_selected or global.valve.player_selected or {}
 
 local valve = {}
+
+---- Event functions ----
+
+function valve.entity_built (event)
+   if event.created_entity ~= nil and event.created_entity.name == "overflow-valve" then
+      local entity = event.created_entity
+      valve.create_proxies(entity)
+      local location_info = {entity.surface.name, entity.position}
+      global.valve.locations[location_info] = {overflow = 9, underflow = 10}
+   end
+end
+
+function valve.on_entity_click (event)
+   
+   local player = event.player
+   local entity = event.entity
+   if entity.name == "overflow-valve" then
+      local location_info, flow_data = valve.search_locations(entity)
+      if location_info then
+	 valve.show_gui(entity, player, location_info, flow_data)
+      else
+	 player.print("Error in overflow-valve (on_entity_click), no location info")
+      end
+   end
+end
+
+function valve.entity_rotated (event)
+   if event.entity ~= nil and event.entity.name == "overflow-valve" then
+      local entity = event.entity
+      local left, right = get_proxies_from_entity(entity)
+      left.direction = entity.direction
+      right.direction = (entity.direction + 4) % 8
+   end
+end
+
+function valve.entity_removed (event)
+   if event.entity ~= nil and event.entity.name == "overflow-valve" then
+      local entity = event.entity
+
+      local left, right = valve.get_proxies_from_entity(entity)
+      left.destroy()
+      right.destroy()
+      
+      local location_info = valve.search_locations(entity)
+      global.valve.locations[location_info] = nil
+
+      for player_index, player_location_info in pairs(global.valve.player_selected) do
+	 if location_info == player_location_info then
+	    valve.destroy_gui(player_index)
+	 end
+      end
+   end
+end
+
+function valve.on_tick (event)
+   if(valve.need_init) then
+      valve.init()
+   end
+   for location_info, flow_info in pairs(global.valve.locations) do
+      local surface_name, position = table.unpack(location_info)
+      local entity = game.surfaces[surface_name].find_entity("overflow-valve", position)
+      if entity == nil then
+	 global.valve.locations[location_info] = nil
+      else
+	 local left, right = valve.get_proxies_from_entity(entity)
+	 if left.fluidbox[1] and (right.fluidbox[1] == nil or left.fluidbox[1].amount > right.fluidbox[1].amount) then
+	    valve.flow_in(entity, left, flow_info.overflow)
+	    valve.flow_out(entity, right, flow_info.underflow)
+	 elseif right.fluidbox[1] and (left.fluidbox[1] == nil or right.fluidbox[1].amount > left.fluidbox[1].amount) then
+	    valve.flow_in(entity, right, flow_info.overflow)
+	    valve.flow_out(entity, left, flow_info.underflow)
+	 end
+      end
+   end
+   if next(global.valve.player_selected) ~= nil then
+      for player_index, target_location_info in pairs(global.valve.player_selected) do
+	 local player_position = game.players[player_index].position
+	 local target_position = target_location_info[2]
+	 local reach_distance = 6 --data.raw.player.player.reach_distance
+	 if math.abs((player_position.x - target_position.x) * (player_position.y - target_position.y)) >
+	    reach_distance * reach_distance
+	 then
+	    valve.destroy_gui(player_index)
+	 end
+      end
+   end
+end
+
+function valve.on_configuration_changed_load(...)
+   if(global.valve_locations) then
+      valve.need_init = true
+   end
+end
+
+---- Helper functions ----
 
 function valve.create_proxies (entity)
    entity.surface.create_entity{
@@ -119,15 +214,6 @@ function valve.show_gui (entity, player, location_info, flow_data)
    script.on_event(defines.events.on_gui_click, valve.on_gui_click)
 end
 
-function valve.entity_built (event)
-   if event.created_entity ~= nil and event.created_entity.name == "overflow-valve" then
-      local entity = event.created_entity
-      valve.create_proxies(entity)
-      local location_info = {entity.surface.name, entity.position}
-      global.valve.locations[location_info] = {overflow = 9, underflow = 10}
-   end
-end
-
 function valve.search_locations (entity)
    for location_info, flow_info in pairs(global.valve.locations) do
       if entity.surface.name == location_info[1] then
@@ -140,42 +226,10 @@ function valve.search_locations (entity)
    return nil, nil
 end
 
-function valve.on_entity_click (event)
-   
-   local player = event.player
-   local entity = event.entity
-   if entity.name == "overflow-valve" then
-      local location_info, flow_data = valve.search_locations(entity)
-      if location_info then
-	 valve.show_gui(entity, player, location_info, flow_data)
-      else
-	 player.print("Error in overflow-valve (on_entity_click), no location info")
-      end
-   end
-end
-
 function valve.get_proxies_from_entity(entity)
    local search_area = {entity.position, entity.position}
    local proxies = entity.surface.find_entities_filtered{area = search_area, name = "valve-proxy"}
    return table.unpack(proxies)
-end
-
-function valve.entity_rotated (event)
-   if event.entity ~= nil and event.entity.name == "overflow-valve" then
-      local entity = event.entity
-      local left, right = get_proxies_from_entity(entity)
-      left.direction = entity.direction
-      right.direction = (entity.direction + 4) % 8
-   end
-end
-
-function valve.entity_removed (event)
-   if event.entity ~= nil and event.entity.name == "overflow-valve" then
-      local entity = event.entity
-      local left, right = valve.get_proxies_from_entity(entity)
-      left.destroy()
-      right.destroy()
-   end
 end
 
 function valve.flow (in_box, out_box, flow_amount)
@@ -210,34 +264,6 @@ function valve.flow_out (entity, proxy, underflow)
    end
 end
 
-function valve.on_tick (event)
-   if(valve.need_init) then
-      valve.init()
-   end
-   for location_info, flow_info in pairs(global.valve.locations) do
-      local surface_name, position = table.unpack(location_info)
-      local entity = game.surfaces[surface_name].find_entity("overflow-valve", position)
-      if entity == nil then
-	 global.valve.locations[location_info] = nil
-      else
-	 local left, right = valve.get_proxies_from_entity(entity)
-	 if left.fluidbox[1] and (right.fluidbox[1] == nil or left.fluidbox[1].amount > right.fluidbox[1].amount) then
-	    valve.flow_in(entity, left, flow_info.overflow)
-	    valve.flow_out(entity, right, flow_info.underflow)
-	 elseif right.fluidbox[1] and (left.fluidbox[1] == nil or right.fluidbox[1].amount > left.fluidbox[1].amount) then
-	    valve.flow_in(entity, right, flow_info.overflow)
-	    valve.flow_out(entity, left, flow_info.underflow)
-	 end
-      end
-   end
-end
-
-function valve.on_configuration_changed_load(...)
-   if(global.valve_locations) then
-      valve.need_init = true
-   end
-end
-
 function valve.init()
    global.valve = global.valve or {}
    global.valve.locations = global.valve.locations or {}
@@ -249,10 +275,6 @@ function valve.init()
 	 game.player.print("k " .. tostring(k) .. " v " .. tostring(v))
       end
       surface = game.get_surface(surface.surfaceindex + 1)
-      game.player.print(game.get_surface(1).index)
-      for k, v in pairs(game.get_surface(1)) do
-	 game.player.print("k " .. tostring(k) .. " v " .. tostring(v))
-      end
       new_location_info = {surface.name, position}
       global.valve.locations[new_location_info] = {overflow = 9, underflow = 10}
    end
